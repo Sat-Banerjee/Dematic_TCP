@@ -5,3 +5,5 @@ When you will run them, their logs will appear in 2 newly created .txt files cli
 Run as follows : 
 python server.py <ip address> <port>
 python client.py <server ip address> <server port>
+
+Note: Ignore the file server_old.py
