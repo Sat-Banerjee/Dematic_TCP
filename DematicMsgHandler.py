@@ -39,9 +39,11 @@ class DematicMsgHandler():
 
     def startTimer(self):
         try:
-            if self.myTimer is None:
-                self.myTimer = Timer(self.keepAliveTime, self.send_KeepAliveMessage)
-                self.myTimer.start()
+            #if self.myTimer is None:
+            self.myTimer = Timer(self.keepAliveTime, self.send_KeepAliveMessage)
+            self.myTimer.start()
+            # else:
+            #     self.logger.log("{}: myTimer is not None on expiry".format(str(self.tId)))
         except Exception as e:
             self.logger.log_exception(e, traceback)
 
@@ -142,6 +144,15 @@ class DematicMsgHandler():
     
     def process_STAT_message(self, message):
         self.logger.log("{}: Processing a STAT message".format(str(self.tId)))
+        # if ACKN needs to be sent
+        strSequence = message[9:17] # 9-16 is the sequence number, py string truncate excludes upper bound
+        intSequence = int(strSequence)
+        if (intSequence != 0):
+            self.send_ACKN_message(strSequence)
+
+        #strMsgLen = len(message)
+        strData = message[17:-1]
+        self.processData(strData)
     
 
 

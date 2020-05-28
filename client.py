@@ -59,7 +59,7 @@ print ("Dummy GO SERVER")
 print ("------------------------------------------------------")
 
 
-keep_alive_time = 15  # secs
+keep_alive_time = 5  # secs
 
 myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_log.txt")
 myLogger.log("\n----------------- NEW SESSION -----------------")
@@ -88,9 +88,6 @@ try:
                                                                 keepAliveTime=keep_alive_time,
                                                                 threadName="DematicMsgHandler")
 
-    # start the timer
-    dematicMsgHandlerObj.startTimer()
-
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 
                                     sockObj=myClient, 
@@ -100,6 +97,9 @@ try:
 
     # start the rx thread 
     rxThreadObj.start()
+
+    # start the timer
+    dematicMsgHandlerObj.startTimer()
 
     while(not rxThreadObj.stop_thread):
         user_inp = print_and_get_user_inp(opts)

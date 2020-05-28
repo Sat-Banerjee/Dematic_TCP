@@ -59,7 +59,7 @@ print ("Dummy DEMATIC PLC")
 print ("------------------------------------------------------")
 
 
-keep_alive_time = 15   # secs
+keep_alive_time = 5   # secs
 myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_log.txt")
 myLogger.log("\n----------------- NEW SESSION -----------------")
 myServer = util.SockUtil(util.CONFIG.SERVER, logger=myLogger)
@@ -87,9 +87,6 @@ try:
                                                                 keepAliveTime=keep_alive_time,
                                                                 threadName="DematicMsgHandler")
 
-    # timer
-    dematicMsgHandlerObj.startTimer()
-
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 
                                     sockObj=myServer, 
@@ -102,6 +99,9 @@ try:
 
     # start the rx thread 
     rxThreadObj.start()
+
+    # timer
+    dematicMsgHandlerObj.startTimer()
 
     while(not rxThreadObj.stop_thread):
         user_inp = print_and_get_user_inp(userOpts)
