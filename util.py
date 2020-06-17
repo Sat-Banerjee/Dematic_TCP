@@ -123,14 +123,16 @@ class SockUtil():
             else:
                 self.logger.log("I am configured as SERVER, cannot call connect_to_server()")
         except Exception as e:
+            self.logger.log("Error connecting to Server" + e.message)
             self.logger.log_exception(e, traceback)
 
     def send_data(self, message):
         try:
-            self.logger.log("Sending message: {}".format(message))
             if self.config == CONFIG.CLIENT:
+                self.logger.log("(as client) Sending message: {}".format(message))
                 self.sock.sendall(str(message))
             else:
+                self.logger.log("(as server) Sending message: {}".format(message))
                 self.sConnection.sendall(str(message))
 
         except Exception as e:

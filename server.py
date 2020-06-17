@@ -13,7 +13,9 @@ import enum
 class ServerUserOpts(enum.IntEnum):
     System_Armed = 1,
     System_UnArmed = 2,
-    PLC_Status = 3,
+    Peripheral_Emergency_Active = 3,
+    Peripheral_Emergency_Resolved = 4,
+    PLC_Status_Response = 5,
     Exit_App = 20
 
 
@@ -85,7 +87,8 @@ try:
                                                                 sockObj=myServer,
                                                                 logger=myLogger,
                                                                 keepAliveTime=keep_alive_time,
-                                                                threadName="DematicMsgHandler")
+                                                                threadName="DematicMsgHandler",
+                                                                validateMessage=True)
 
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 

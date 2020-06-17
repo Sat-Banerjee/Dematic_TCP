@@ -9,10 +9,10 @@ import sys
 import enum
 
 class ClientUserOpts(enum.IntEnum):
-    UnArmed = 1,
-    Request_to_move_Ranger = 2,
-    Stop_Moving_Ranger = 3,
-    Request_PLC_Status = 4,
+    Request_to_UnArm = 1,
+    Request_to_Arm = 2,     # Same as Request to move Ranger
+    #Stop_Moving_Ranger = 3,
+    Request_PLC_Status = 3,
     Exit_App = 20
 
 # --------------------------------------------------------
@@ -62,7 +62,8 @@ print ("------------------------------------------------------")
 keep_alive_time = 5  # secs
 
 myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_log.txt")
-myLogger.log("\n----------------- NEW SESSION -----------------")
+myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./life_rx_log.txt")
+myLogger.log("\n----------------- NEW SESSION (without ValidateMessage, Enable it asap) -----------------")
 myClient = util.SockUtil(util.CONFIG.CLIENT, logger=myLogger)
 
 myClient.create_socket()
@@ -86,7 +87,9 @@ try:
                                                                 sockObj=myClient,
                                                                 logger=myLogger,
                                                                 keepAliveTime=keep_alive_time,
-                                                                threadName="DematicMsgHandler")
+                                                                threadName="DematicMsgHandler",
+                                                                timeLogger=myTimeLogger,
+                                                                validateMessage=True)
 
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 

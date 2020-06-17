@@ -1,14 +1,18 @@
 import util
 import time
+import datetime
 from queue import Queue
 import traceback
 from threading import Lock, Timer
 
 class DematicMsgHandler():
-    def __init__(self, qName, sockObj, logger, keepAliveTime, userOptsEnum, threadName=""):
+    def __init__(self, qName, sockObj, logger, 
+                    keepAliveTime, userOptsEnum, threadName="", 
+                    timeLogger=None, validateMessage=True):
         self.qId = qName
         self.sockObj = sockObj
         self.logger = logger
+        self.timeLogger = timeLogger
         self.tId = threadName
         self.keepAliveTime = keepAliveTime
         self.fSendKeepAlive = True
@@ -17,6 +21,17 @@ class DematicMsgHandler():
         self.sequenceLock = Lock()
         self.myTimer = None
         self.userOptsEnum = userOptsEnum
+        self.validateMessage = validateMessage
+        self.lastLifeAt = self.getTimeStamp()
+
+        # ----- counters for life timing -- 
+        self.totalLifeMsg = 0
+        self.life6AndBelow = 0      # correct messages which came under 6 secs
+        self.lifeBelow6_1 = 0       # messages which came under 6.1 secs
+        self.lifeBelow6_2 = 0       # messages which came under 6.2 secs
+        self.lifeBelow6_5 = 0       # messages which came under 6.5 secs
+        self.lifeAbove6_5 = 0       # messages which came after 6.5 secs
+        # ---------------------------------
 
         self.bSTX = b'\x02'
         self.bCR = b'\x0D'
@@ -29,6 +44,8 @@ class DematicMsgHandler():
         self.processing_fn_dict["ACKN"] = self.process_ACKN_message
         self.processing_fn_dict["LIFE"] = self.process_LIFE_message
         self.processing_fn_dict["STAT"] = self.process_STAT_message
+
+        self.logger.log("{}: Incoming Message Validation set to: {}".format(str(self.tId), str(self.validateMessage)))            
 
     def cancelTimer(self):
         try:
@@ -60,26 +77,41 @@ class DematicMsgHandler():
     def processInp(self, sInp):
         self.logger.log("{}: Processing input: {}".format(str(self.tId), sInp))
 
-        if sInp == "UnArmed":
-            self.send_Data_Message(strData="Unarm:001")
+        if sInp == "Request_to_UnArm":
+            strData = "MSG052peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
         
-        elif sInp == "Request_to_move_Ranger":
-            self.send_Data_Message(strData="mover:001")
+        elif sInp == "Request_to_Arm":  # Same as Request to move Ranger
+            strData = "MSG053peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
         
-        elif sInp == "Stop_Moving_Ranger":
-            self.send_Data_Message(strData="mover:000")
+        elif sInp == "Peripheral_Emergency_Active":
+            strData = "MSG054peripheral_groupid01peripheral_type001emergency001timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
+
+        elif sInp == "Peripheral_Emergency_Resolved":
+            strData = "MSG054peripheral_groupid01peripheral_type001emergency000timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
+
+        # elif sInp == "Stop_Moving_Ranger":
+        #     self.send_Data_Message(strData="mover:000")
 
         elif sInp == "Request_PLC_Status":
-            self.send_Data_Message(strData="reqstat")
+            strData = "MSG055peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
 
         elif sInp == "System_Armed":
-            self.send_Data_Message(strData="armed:001")
+            strData = "MSG051peripheral_groupid01peripheral_type001armed001timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
 
         elif sInp == "System_UnArmed":
-            self.send_Data_Message(strData="armed:000")
+            strData = "MSG051peripheral_groupid01peripheral_type001armed000timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
 
-        elif sInp == "PLC_Status":
-            self.send_Stat_Message(strData="statu:000")
+        elif sInp == "PLC_Status_Response":
+            strData = "MSG056peripheral_groupid01peripheral_type001armed000emergency001status001timestamp" + self.getFormattedTimeStamp() 
+            self.send_Data_Message(strData=strData)
+
         else:
             self.logger.log("{}: Wrong User Input: {}".format(str(self.tId), sInp))
 
@@ -106,9 +138,9 @@ class DematicMsgHandler():
         return strData
         
     def process_Rx_Message(self, message):
-        self.logger.log("{}: Processing message: {}".format(str(self.tId), str(message)))
+        self.logger.log("{} {}: Processing message: {}".format(str(self.getTimeStamp()), str(self.tId), str(message)))
         try:
-            if self.validateMsg(sMessage=message):
+            if ((not self.validateMessage) or (self.validateMsg(sMessage=message))):
                 for mType, fnPtr in self.processing_fn_dict.items():
                     if mType in message:
                         fnPtr(message)
@@ -140,8 +172,48 @@ class DematicMsgHandler():
     
 
     def process_LIFE_message(self, message):
-        self.logger.log("{}: Processing a LIFE message".format(str(self.tId)))
+        self.totalLifeMsg += 1
+        currTime = self.getTimeStamp()
+        self.logger.log("{} {}: Processing a LIFE message".format(str(currTime), str(self.tId)))
+        timeDiff = currTime - self.lastLifeAt
+        self.timeLogger.log("{}: Processing a LIFE message. Diff: {}".format(str(currTime), str(timeDiff)))
     
+        if (timeDiff > 6):
+            self.timeLogger.log("**ERROR** Last Life at: {}, Curr Life at: {}, Time Diff: {}".format(str(self.lastLifeAt),
+                                                                                                    str(currTime),
+                                                                                                    str(timeDiff)))
+            if (timeDiff <= 6.1):
+                self.lifeBelow6_1 += 1
+            elif (timeDiff <= 6.2):
+                self.lifeBelow6_2 += 1
+            elif (timeDiff <= 6.5):
+                self.lifeBelow6_5 += 1
+            else:
+                self.lifeAbove6_5 += 1
+        
+        else:
+            # Correct Life
+            self.life6AndBelow += 1
+
+        # per_Below6 = str((self.life6AndBelow/self.totalLifeMsg)*100)
+        # per_Below6_1 = str((self.lifeBelow6_1/self.totalLifeMsg)*100)
+        # per_Below6_2 = str((self.lifeBelow6_2/self.totalLifeMsg)*100)
+        # per_Below6_5 = str((self.lifeBelow6_5/self.totalLifeMsg)*100)
+        # per_Above6_5 = str((self.lifeAbove6_5/self.totalLifeMsg)*100)
+
+
+        self.timeLogger.log("Total Life: {}, Correct Life: {}, Below 6.1: {}, Below 6.2: {}, Below 6.5: {}, Above 6.5: {}".format(
+                                str(self.totalLifeMsg),
+                                str(self.life6AndBelow),
+                                str(self.lifeBelow6_1),
+                                str(self.lifeBelow6_2),
+                                str(self.lifeBelow6_5),
+                                str(self.lifeAbove6_5)
+                                ))
+
+        self.lastLifeAt = currTime
+
+
     def process_STAT_message(self, message):
         self.logger.log("{}: Processing a STAT message".format(str(self.tId)))
         # if ACKN needs to be sent
@@ -154,7 +226,13 @@ class DematicMsgHandler():
         strData = message[17:-1]
         self.processData(strData)
     
+    def getTimeStamp(self):
+        return float(time.time())
 
+    def getFormattedTimeStamp(self):
+        today = datetime.datetime.today()
+        retval = str(today.strftime('%Y%m%d__%H%M%S_%f'))[:20]
+        return retval
 
     def sendMessage(self, message):
         self.sockObj.send_data(message)
@@ -166,9 +244,10 @@ class DematicMsgHandler():
 
     # only if no messages has been sent in last 6 secs
     def send_KeepAliveMessage(self):
-        if (self.fSendKeepAlive):
-            # its similar to ACKN message, just the sequence no. is 0
-            self.send_ACKN_message(strSequence="00000000", mType="LIFE")
+        #if (self.fSendKeepAlive):
+
+        # its similar to ACKN message, just the sequence no. is 0
+        self.send_ACKN_message(strSequence="00000000", mType="LIFE")
 
         self.keepAlivelock.acquire()
         self.fSendKeepAlive = True
