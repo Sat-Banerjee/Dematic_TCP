@@ -148,7 +148,7 @@ class DematicMsgHandler():
             else:
                 self.logger.log("{}: Invalid message received, ignoring".format(str(self.tId)))
         except Exception as e:
-            self.logger.log(e, traceback)
+            self.logger.log_exception(e, traceback)
 
     def process_DATA_message(self, message):
         self.logger.log("{}: Processing a DATA message".format(str(self.tId)))
@@ -175,43 +175,45 @@ class DematicMsgHandler():
         self.totalLifeMsg += 1
         currTime = self.getTimeStamp()
         self.logger.log("{} {}: Processing a LIFE message".format(str(currTime), str(self.tId)))
-        timeDiff = currTime - self.lastLifeAt
-        self.timeLogger.log("{}: Processing a LIFE message. Diff: {}".format(str(currTime), str(timeDiff)))
-    
-        if (timeDiff > 6):
-            self.timeLogger.log("**ERROR** Last Life at: {}, Curr Life at: {}, Time Diff: {}".format(str(self.lastLifeAt),
-                                                                                                    str(currTime),
-                                                                                                    str(timeDiff)))
-            if (timeDiff <= 6.1):
-                self.lifeBelow6_1 += 1
-            elif (timeDiff <= 6.2):
-                self.lifeBelow6_2 += 1
-            elif (timeDiff <= 6.5):
-                self.lifeBelow6_5 += 1
-            else:
-                self.lifeAbove6_5 += 1
         
-        else:
-            # Correct Life
-            self.life6AndBelow += 1
+        if self.timeLogger is not None:
+            timeDiff = currTime - self.lastLifeAt
+            self.timeLogger.log("{}: Processing a LIFE message. Diff: {}".format(str(currTime), str(timeDiff)))
+        
+            if (timeDiff > 6):
+                self.timeLogger.log("**ERROR** Last Life at: {}, Curr Life at: {}, Time Diff: {}".format(str(self.lastLifeAt),
+                                                                                                        str(currTime),
+                                                                                                        str(timeDiff)))
+                if (timeDiff <= 6.1):
+                    self.lifeBelow6_1 += 1
+                elif (timeDiff <= 6.2):
+                    self.lifeBelow6_2 += 1
+                elif (timeDiff <= 6.5):
+                    self.lifeBelow6_5 += 1
+                else:
+                    self.lifeAbove6_5 += 1
+            
+            else:
+                # Correct Life
+                self.life6AndBelow += 1
 
-        # per_Below6 = str((self.life6AndBelow/self.totalLifeMsg)*100)
-        # per_Below6_1 = str((self.lifeBelow6_1/self.totalLifeMsg)*100)
-        # per_Below6_2 = str((self.lifeBelow6_2/self.totalLifeMsg)*100)
-        # per_Below6_5 = str((self.lifeBelow6_5/self.totalLifeMsg)*100)
-        # per_Above6_5 = str((self.lifeAbove6_5/self.totalLifeMsg)*100)
+            # per_Below6 = str((self.life6AndBelow/self.totalLifeMsg)*100)
+            # per_Below6_1 = str((self.lifeBelow6_1/self.totalLifeMsg)*100)
+            # per_Below6_2 = str((self.lifeBelow6_2/self.totalLifeMsg)*100)
+            # per_Below6_5 = str((self.lifeBelow6_5/self.totalLifeMsg)*100)
+            # per_Above6_5 = str((self.lifeAbove6_5/self.totalLifeMsg)*100)
 
 
-        self.timeLogger.log("Total Life: {}, Correct Life: {}, Below 6.1: {}, Below 6.2: {}, Below 6.5: {}, Above 6.5: {}".format(
-                                str(self.totalLifeMsg),
-                                str(self.life6AndBelow),
-                                str(self.lifeBelow6_1),
-                                str(self.lifeBelow6_2),
-                                str(self.lifeBelow6_5),
-                                str(self.lifeAbove6_5)
-                                ))
+            self.timeLogger.log("Total Life: {}, Correct Life: {}, Below 6.1: {}, Below 6.2: {}, Below 6.5: {}, Above 6.5: {}".format(
+                                    str(self.totalLifeMsg),
+                                    str(self.life6AndBelow),
+                                    str(self.lifeBelow6_1),
+                                    str(self.lifeBelow6_2),
+                                    str(self.lifeBelow6_5),
+                                    str(self.lifeAbove6_5)
+                                    ))
 
-        self.lastLifeAt = currTime
+            self.lastLifeAt = currTime
 
 
     def process_STAT_message(self, message):
