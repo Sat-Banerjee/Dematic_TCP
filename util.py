@@ -4,6 +4,7 @@ import enum
 import traceback
 import fcntl, os
 import errno
+import time
 
 class LOG_DEST(enum.IntEnum):
     NO_LOG = 0
@@ -13,6 +14,11 @@ class LOG_DEST(enum.IntEnum):
 class CONFIG(enum.IntEnum):
     CLIENT = 1
     SERVER = 2
+
+# ---------------
+def getTimeStamp():
+    return float(time.time())
+# ---------------
 
 class CustomLogger():
     def __init__(self, log_dest, fileName=None):
@@ -129,10 +135,10 @@ class SockUtil():
     def send_data(self, message):
         try:
             if self.config == CONFIG.CLIENT:
-                self.logger.log("(as client) Sending message: {}".format(message))
+                self.logger.log("{} - (as client) Sending message: {}".format(str(getTimeStamp()), message))
                 self.sock.sendall(str(message))
             else:
-                self.logger.log("(as server) Sending message: {}".format(message))
+                self.logger.log("{} - (as server) Sending message: {}".format(str(getTimeStamp()), message))
                 self.sConnection.sendall(str(message))
 
         except Exception as e:
@@ -162,7 +168,7 @@ class SockUtil():
 
                 if data:
                     data_received += len(data)
-                    self.logger.log("Receiving data: {} bytes, data: {}".format(data_received, data))
+                    self.logger.log("{}: Receiving data: {} bytes, data: {}".format(str(getTimeStamp()), data_received, data))
                 else:
                     #self.logger.log("No more data coming from {}".format(self.sClientAddress))
                     raise (Exception(errno.ECONNABORTED))

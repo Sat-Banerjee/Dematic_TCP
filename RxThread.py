@@ -24,7 +24,7 @@ class RxThread(Thread):
                 data, dataLen = self.sockObj.receive_data(expected_data_len=self.exp_data_size)
     
                 if data is not None:
-                    self.logger.log("{}: data received {} bytes: {}".format(str(self.tId), str(dataLen), data))
+                    self.logger.log("{} - {}: data received {} bytes: {}".format(str(util.getTimeStamp()), str(self.tId), str(dataLen), data))
                     self.decodeFn(message=data)
                 else:
                     time.sleep(0.300)   # 300 ms

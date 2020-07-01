@@ -8,11 +8,12 @@ from threading import Lock, Timer
 class DematicMsgHandler():
     def __init__(self, qName, sockObj, logger, 
                     keepAliveTime, userOptsEnum, threadName="", 
-                    timeLogger=None, validateMessage=True):
+                    **kwargs):            
+                    # timeLogger=None, validateMessage=True):
+        
         self.qId = qName
         self.sockObj = sockObj
         self.logger = logger
-        self.timeLogger = timeLogger
         self.tId = threadName
         self.keepAliveTime = keepAliveTime
         self.fSendKeepAlive = True
@@ -21,8 +22,11 @@ class DematicMsgHandler():
         self.sequenceLock = Lock()
         self.myTimer = None
         self.userOptsEnum = userOptsEnum
-        self.validateMessage = validateMessage
-        self.lastLifeAt = self.getTimeStamp()
+        self.validateMessage = kwargs.get("validateMessage", True)
+        self.timeLogger = kwargs.get("timeLogger", None)
+        self.ackLogger = kwargs.get("ackLogger", None)
+        self.lastLifeAt = util.getTimeStamp()
+        self.ackList = list()
 
         # ----- counters for life timing -- 
         self.totalLifeMsg = 0
@@ -74,42 +78,45 @@ class DematicMsgHandler():
                 self.processInp(opt.name)
                 break
 
+    def getStationId(self):
+        return "0151"
+
     def processInp(self, sInp):
         self.logger.log("{}: Processing input: {}".format(str(self.tId), sInp))
 
         if sInp == "Request_to_UnArm":
-            strData = "MSG052peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG052peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
         
         elif sInp == "Request_to_Arm":  # Same as Request to move Ranger
-            strData = "MSG053peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG053peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
         
         elif sInp == "Peripheral_Emergency_Active":
-            strData = "MSG054peripheral_groupid01peripheral_type001emergency001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency001timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "Peripheral_Emergency_Resolved":
-            strData = "MSG054peripheral_groupid01peripheral_type001emergency000timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency000timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         # elif sInp == "Stop_Moving_Ranger":
         #     self.send_Data_Message(strData="mover:000")
 
         elif sInp == "Request_PLC_Status":
-            strData = "MSG055peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG055peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "System_Armed":
-            strData = "MSG051peripheral_groupid01peripheral_type001armed001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG051peripheral_groupid01peripheral_type001armed001timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "System_UnArmed":
-            strData = "MSG051peripheral_groupid01peripheral_type001armed000timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG051peripheral_groupid01peripheral_type001armed000timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "PLC_Status_Response":
-            strData = "MSG056peripheral_groupid01peripheral_type001armed000emergency001status001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG056peripheral_groupid01peripheral_type001armed000emergency001status001timestamp" + self.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         else:
@@ -138,13 +145,26 @@ class DematicMsgHandler():
         return strData
         
     def process_Rx_Message(self, message):
-        self.logger.log("{} {}: Processing message: {}".format(str(self.getTimeStamp()), str(self.tId), str(message)))
+        self.logger.log("{} {}: Processing message: {}".format(str(util.getTimeStamp()), str(self.tId), str(message)))
         try:
             if ((not self.validateMessage) or (self.validateMsg(sMessage=message))):
                 for mType, fnPtr in self.processing_fn_dict.items():
                     if mType in message:
                         fnPtr(message)
                         break
+            elif (not self.validateMsg(sMessage=message)):
+                # check if multiple messages are received ?
+                count = message.count(str(self.bSTX))
+                if count > 1 : 
+                    # we have received multiple messages
+                    self.logger.log("{}: Multiple ({}) Messages Received".format(str(self.tId), str(count)))
+                    searchMsg = message
+                    while (searchMsg.find(str(self.bSTX)) != -1):
+                        # starts with STX
+                        partSize = int(searchMsg[1:5])
+                        partMessage = searchMsg[:partSize]
+                        self.process_Rx_Message(message=partMessage)
+                        searchMsg = searchMsg[partSize:]
             else:
                 self.logger.log("{}: Invalid message received, ignoring".format(str(self.tId)))
         except Exception as e:
@@ -169,11 +189,19 @@ class DematicMsgHandler():
 
     def process_ACKN_message(self, message):
         self.logger.log("{}: Processing an ACKN message".format(str(self.tId)))
-    
+        ackNo = message[9:]
+        ackNo = ackNo[:-2]
+        self.ackLogger.log("{}, {}, Received ACKN, {}".format(str(util.getTimeStamp()), str(int(ackNo)), message))
+        if ackNo in self.ackList:
+            self.logger.log("{}: ACKN sequence ({}) matching".format(str(self.tId), str(ackNo)))
+            self.ackList.remove(ackNo)
+        else:
+            self.logger.log("{}: ERROR -- ACKN sequence ({}) not matching".format(str(self.tId), str(ackNo)))
+
 
     def process_LIFE_message(self, message):
         self.totalLifeMsg += 1
-        currTime = self.getTimeStamp()
+        currTime = util.getTimeStamp()
         self.logger.log("{} {}: Processing a LIFE message".format(str(currTime), str(self.tId)))
         
         if self.timeLogger is not None:
@@ -196,13 +224,6 @@ class DematicMsgHandler():
             else:
                 # Correct Life
                 self.life6AndBelow += 1
-
-            # per_Below6 = str((self.life6AndBelow/self.totalLifeMsg)*100)
-            # per_Below6_1 = str((self.lifeBelow6_1/self.totalLifeMsg)*100)
-            # per_Below6_2 = str((self.lifeBelow6_2/self.totalLifeMsg)*100)
-            # per_Below6_5 = str((self.lifeBelow6_5/self.totalLifeMsg)*100)
-            # per_Above6_5 = str((self.lifeAbove6_5/self.totalLifeMsg)*100)
-
 
             self.timeLogger.log("Total Life: {}, Correct Life: {}, Below 6.1: {}, Below 6.2: {}, Below 6.5: {}, Above 6.5: {}".format(
                                     str(self.totalLifeMsg),
@@ -228,8 +249,6 @@ class DematicMsgHandler():
         strData = message[17:-1]
         self.processData(strData)
     
-    def getTimeStamp(self):
-        return float(time.time())
 
     def getFormattedTimeStamp(self):
         today = datetime.datetime.today()
@@ -273,23 +292,38 @@ class DematicMsgHandler():
         strLen = self.__packData(strLen, 4)
 
         # without CR, LF, STX. That will be added later
-        strMsg = strLen + str(mType) + self.__get_sequence_number() + strData
+        seqNo = self.__get_sequence_number()
+        strMsg = strLen + str(mType) + seqNo + strData
 
         bMsg = bytearray(strMsg)
         bMsg = self.bSTX + bMsg + self.bCR + self.bLF 
         strMsg = str(bMsg)
-        
-        return strMsg
+        self.ackList.append(seqNo)
+        return (strMsg, seqNo)
 
     def send_Data_Message(self, strData):
-        strMsg = self.prepareDematicStructuredData(mType="DATA", strData=strData)
+        strMsg, seqNo = self.prepareDematicStructuredData(mType="DATA", strData=strData)
+        self.logger.log("{}: Sending Data message: {}".format(str(self.tId), strMsg))
+        self.ackLogger.log("{}, {}, Sending Data, {}".format(str(util.getTimeStamp()), str(seqNo), strMsg))
+        self.sendMessage(message=strMsg)
+
+        self.logger.log("{}: Pending ack to match: {}".format(str(self.tId), str(len(self.ackList))))  
+        # log the pending acks if any
+        if (len(self.ackList) > 0):
+            for ack in self.ackList:
+                self.logger.log("\t {}".format(ack))
+
+
+    def send_Stat_Message(self, strData):
+        strMsg, seqNo = self.prepareDematicStructuredData(mType="STAT", strData=strData)
         self.logger.log("{}: Sending Data message: {}".format(str(self.tId), strMsg))
         self.sendMessage(message=strMsg)
 
-    def send_Stat_Message(self, strData):
-        strMsg = self.prepareDematicStructuredData(mType="STAT", strData=strData)
-        self.logger.log("{}: Sending Data message: {}".format(str(self.tId), strMsg))
-        self.sendMessage(message=strMsg)
+        self.logger.log("{}: Pending ack to match: {}".format(str(self.tId), str(len(self.ackList))))  
+        # log the pending acks if any
+        if (len(self.ackList) > 0):
+            for ack in self.ackList:
+                self.logger.log("\t {}".format(ack))
 
 
     def validateMsg(self, sMessage):

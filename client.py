@@ -55,7 +55,7 @@ ip = str(sys.argv[1])
 port = int(sys.argv[2])
 
 print ("------------------------------------------------------")
-print ("Dummy GO SERVER")
+print ("Dummy GOR SERVER")
 print ("------------------------------------------------------")
 
 
@@ -63,6 +63,8 @@ keep_alive_time = 5  # secs
 
 myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_log.txt")
 myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./life_rx_log.txt")
+myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./ack_rx_log.csv")
+myAckLogger.log("Timestamp, Ackn No., Data Direction, Data")
 myLogger.log("\n----------------- NEW SESSION (without ValidateMessage, Enable it asap) -----------------")
 myClient = util.SockUtil(util.CONFIG.CLIENT, logger=myLogger)
 
@@ -89,6 +91,7 @@ try:
                                                                 keepAliveTime=keep_alive_time,
                                                                 threadName="DematicMsgHandler",
                                                                 timeLogger=myTimeLogger,
+                                                                ackLogger=myAckLogger,
                                                                 validateMessage=True)
 
     # create the Rx thread obj
