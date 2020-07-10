@@ -18,15 +18,17 @@ class DematicMsgHandler():
         self.keepAliveTime = keepAliveTime
         self.fSendKeepAlive = True
         self.keepAlivelock = Lock()
-        self.sequenceCtr = 0
+        self.sequenceCtr = int (kwargs.get("seq_start_from", 0))
         self.sequenceLock = Lock()
         self.myTimer = None
         self.userOptsEnum = userOptsEnum
         self.validateMessage = kwargs.get("validateMessage", True)
         self.timeLogger = kwargs.get("timeLogger", None)
         self.ackLogger = kwargs.get("ackLogger", None)
+        #self.seq_start_from = int (kwargs.get("seq_start_from", 0))
         self.lastLifeAt = util.getTimeStamp()
         self.ackList = list()
+        self.myLifeCtr = 0
 
         # ----- counters for life timing -- 
         self.totalLifeMsg = 0
@@ -85,38 +87,38 @@ class DematicMsgHandler():
         self.logger.log("{}: Processing input: {}".format(str(self.tId), sInp))
 
         if sInp == "Request_to_UnArm":
-            strData = str(self.getStationId()) + "MSG052peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG052peripheral_groupid01peripheral_type001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
         
         elif sInp == "Request_to_Arm":  # Same as Request to move Ranger
-            strData = str(self.getStationId()) + "MSG053peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG053peripheral_groupid01peripheral_type001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
         
         elif sInp == "Peripheral_Emergency_Active":
-            strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "Peripheral_Emergency_Resolved":
-            strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency000timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency000timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         # elif sInp == "Stop_Moving_Ranger":
         #     self.send_Data_Message(strData="mover:000")
 
         elif sInp == "Request_PLC_Status":
-            strData = str(self.getStationId()) + "MSG055peripheral_groupid01peripheral_type001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG055peripheral_groupid01peripheral_type001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "System_Armed":
-            strData = str(self.getStationId()) + "MSG051peripheral_groupid01peripheral_type001armed001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG051peripheral_groupid01peripheral_type001armed001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "System_UnArmed":
-            strData = str(self.getStationId()) + "MSG051peripheral_groupid01peripheral_type001armed000timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG051peripheral_groupid01peripheral_type001armed000timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         elif sInp == "PLC_Status_Response":
-            strData = str(self.getStationId()) + "MSG056peripheral_groupid01peripheral_type001armed000emergency001status001timestamp" + self.getFormattedTimeStamp() 
+            strData = str(self.getStationId()) + "MSG056peripheral_groupid01peripheral_type001armed000emergency001status001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
 
         else:
@@ -176,6 +178,7 @@ class DematicMsgHandler():
         strSequence = message[9:17] # 9-16 is the sequence number, py string truncate excludes upper bound
         intSequence = int(strSequence)
         if (intSequence != 0):
+            self.logger.log("{}: Need to send ACKN for sequence: {}".format(str(self.tId), strSequence))
             self.send_ACKN_message(strSequence)
 
         #strMsgLen = len(message)
@@ -191,7 +194,9 @@ class DematicMsgHandler():
         self.logger.log("{}: Processing an ACKN message".format(str(self.tId)))
         ackNo = message[9:]
         ackNo = ackNo[:-2]
-        self.ackLogger.log("{}, {}, Received ACKN, {}".format(str(util.getTimeStamp()), str(int(ackNo)), message))
+        if self.ackLogger is not None:
+            self.ackLogger.log("{}, {}, Received ACKN, {}".format(str(util.getTimeStamp()), str(int(ackNo)), message))
+
         if ackNo in self.ackList:
             self.logger.log("{}: ACKN sequence ({}) matching".format(str(self.tId), str(ackNo)))
             self.ackList.remove(ackNo)
@@ -248,12 +253,6 @@ class DematicMsgHandler():
         #strMsgLen = len(message)
         strData = message[17:-1]
         self.processData(strData)
-    
-
-    def getFormattedTimeStamp(self):
-        today = datetime.datetime.today()
-        retval = str(today.strftime('%Y%m%d__%H%M%S_%f'))[:20]
-        return retval
 
     def sendMessage(self, message):
         self.sockObj.send_data(message)
@@ -263,13 +262,13 @@ class DematicMsgHandler():
         self.fSendKeepAlive = False
         self.keepAlivelock.release()
 
-    # only if no messages has been sent in last 6 secs
+
     def send_KeepAliveMessage(self):
         #if (self.fSendKeepAlive):
-
+        self.myLifeCtr += 1
         # its similar to ACKN message, just the sequence no. is 0
         self.send_ACKN_message(strSequence="00000000", mType="LIFE")
-
+        self.logger.log("{}: My Life Ctr: {}".format(str(self.tId), str(self.myLifeCtr)))
         self.keepAlivelock.acquire()
         self.fSendKeepAlive = True
         self.keepAlivelock.release()
@@ -304,14 +303,16 @@ class DematicMsgHandler():
     def send_Data_Message(self, strData):
         strMsg, seqNo = self.prepareDematicStructuredData(mType="DATA", strData=strData)
         self.logger.log("{}: Sending Data message: {}".format(str(self.tId), strMsg))
-        self.ackLogger.log("{}, {}, Sending Data, {}".format(str(util.getTimeStamp()), str(seqNo), strMsg))
+        if self.ackLogger is not None:
+            self.ackLogger.log("{}, {}, Sending Data, {}".format(str(util.getTimeStamp()), str(seqNo), strMsg))
+
         self.sendMessage(message=strMsg)
 
         self.logger.log("{}: Pending ack to match: {}".format(str(self.tId), str(len(self.ackList))))  
-        # log the pending acks if any
-        if (len(self.ackList) > 0):
-            for ack in self.ackList:
-                self.logger.log("\t {}".format(ack))
+        # log the pending acks if any 
+        # if (len(self.ackList) > 0):
+        #     for ack in self.ackList:
+        #         self.logger.log("\t {}".format(ack))
 
 
     def send_Stat_Message(self, strData):

@@ -27,6 +27,8 @@ def print_and_get_user_inp(opts):
 
     try:
         user_inp = int(input ("\t Enter your Choice: "))
+    except KeyboardInterrupt as e:
+        user_inp = 20
     except Exception as e:
         pass
 
@@ -49,21 +51,30 @@ def handle_user_inp(opts, user_inp, dematicHandler):
 
 # ------------------------------------------------------------
 # command line args
-if (len(sys.argv) != 3):
-    print ("Invalid no. of command line args. Usage python {} <ip> <port>".format(sys.argv[0]))
+if (len(sys.argv) < 3):
+    print ("Invalid no. of command line args. Usage python {} <ip> <port> <o: loop-time>".format(sys.argv[0]))
     exit(-1)
 
 ip = str(sys.argv[1])
 port = int(sys.argv[2])
+loopTime = None
+
+keep_alive_time = 6   # secs
+fileCreationTime = util.getFormattedTimeStamp()
+myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_log_" + fileCreationTime + ".txt")
+myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_life_rx_log_" + fileCreationTime + ".txt")
+myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_ack_rx_log_" + fileCreationTime + ".csv")
 
 print ("------------------------------------------------------")
-print ("Dummy DEMATIC PLC")
+if (len(sys.argv) >= 4):
+    loopTime = float(sys.argv[3])
+    print ("Dummy DEMATIC PLC (Automated for Sending)")
+    myLogger.log("\n----------------- NEW SESSION (Automated for Sending) -----------------")
+else:
+    print ("Dummy DEMATIC PLC with User Options)")
+    myLogger.log("\n----------------- NEW SESSION -----------------")
 print ("------------------------------------------------------")
 
-
-keep_alive_time = 5   # secs
-myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_log.txt")
-myLogger.log("\n----------------- NEW SESSION -----------------")
 myServer = util.SockUtil(util.CONFIG.SERVER, logger=myLogger)
 
 myServer.create_socket()
@@ -88,6 +99,9 @@ try:
                                                                 logger=myLogger,
                                                                 keepAliveTime=keep_alive_time,
                                                                 threadName="DematicMsgHandler",
+                                                                ackLogger=myAckLogger,
+                                                                timeLogger=myTimeLogger,
+                                                                seq_start_from=10000000,    # star the seq.no generation from this
                                                                 validateMessage=True)
 
     # create the Rx thread obj
@@ -107,12 +121,29 @@ try:
     dematicMsgHandlerObj.startTimer()
 
     while(not rxThreadObj.stop_thread):
-        user_inp = print_and_get_user_inp(userOpts)
-        if (handle_user_inp(userOpts, user_inp, dematicHandler=dematicMsgHandlerObj) == -1):
+        try:
+            if loopTime is not None:
+                dematicMsgHandlerObj.processUserInp(1)
+                time.sleep (loopTime)
+                dematicMsgHandlerObj.processUserInp(2)
+                time.sleep (loopTime)
+                dematicMsgHandlerObj.processUserInp(3)
+                time.sleep (loopTime)
+                dematicMsgHandlerObj.processUserInp(4)
+                time.sleep (loopTime)
+                dematicMsgHandlerObj.processUserInp(5)
+                time.sleep (loopTime)
+            else:
+                user_inp = print_and_get_user_inp(userOpts)
+                if (handle_user_inp(userOpts, user_inp, dematicHandler=dematicMsgHandlerObj) == -1):
+                    break
+        except KeyboardInterrupt as e:
+            break
+        except Exception as e:
             break
 
-
 except Exception as e:
+    print ("I am in main exception handling")
     myLogger.log_exception(e, traceback)
     rxThreadObj.stop_thread = True
 

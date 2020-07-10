@@ -24,6 +24,8 @@ def print_and_get_user_inp(opts):
 
     try:
         user_inp = input ("\t Enter your Choice: ")
+    except KeyboardInterrupt as e:
+        user_inp = 20
     except Exception as e:
         pass
 
@@ -47,25 +49,32 @@ def handle_user_inp(opts, user_inp, dematicHandler):
 # ------------------------------------------------------------
 
 # command line args
-if (len(sys.argv) != 3):
-    print ("Invalid no. of command line args. Usage python {} <ip> <port>".format(sys.argv[0]))
+if (len(sys.argv) < 3):
+    print ("Invalid no. of command line args. Usage python {} <ip> <port> <o: loop-time>".format(sys.argv[0]))
     exit(-1)
 
 ip = str(sys.argv[1])
 port = int(sys.argv[2])
 
+loopTime = None
+
+keep_alive_time = 6  # secs
+file_timestamp = util.getFormattedTimeStamp()
+myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_log_" + file_timestamp + ".txt")
+myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_life_rx_log_" + file_timestamp + ".txt")
+myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_ack_rx_log_" + file_timestamp + ".csv")
+myAckLogger.log("Timestamp, Sequence No., Data Direction, Data")
+
 print ("------------------------------------------------------")
-print ("Dummy GOR SERVER")
+if (len(sys.argv) >= 4):
+    loopTime = float(sys.argv[3])
+    print ("Dummy GOR SERVER (Automated for Sending)")
+    myLogger.log("\n{} ----------------- NEW SESSION Automated for Sending -----------------".format(str(util.getTimeStamp())))
+else:
+    print ("Dummy GOR SERVER with user Options")
+    myLogger.log("\n{} ----------------- NEW SESSION -----------------".format(str(util.getTimeStamp())))
 print ("------------------------------------------------------")
 
-
-keep_alive_time = 5  # secs
-
-myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_log.txt")
-myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./life_rx_log.txt")
-myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./ack_rx_log.csv")
-myAckLogger.log("Timestamp, Ackn No., Data Direction, Data")
-myLogger.log("\n----------------- NEW SESSION (without ValidateMessage, Enable it asap) -----------------")
 myClient = util.SockUtil(util.CONFIG.CLIENT, logger=myLogger)
 
 myClient.create_socket()
@@ -108,8 +117,21 @@ try:
     dematicMsgHandlerObj.startTimer()
 
     while(not rxThreadObj.stop_thread):
-        user_inp = print_and_get_user_inp(opts)
-        if (handle_user_inp(opts, user_inp, dematicHandler=dematicMsgHandlerObj) == -1):
+        try:
+            if loopTime is not None:
+                dematicMsgHandlerObj.processUserInp(1)
+                time.sleep (loopTime)
+                dematicMsgHandlerObj.processUserInp(2)
+                time.sleep (loopTime)
+                dematicMsgHandlerObj.processUserInp(3)
+                time.sleep (loopTime)
+            else:
+                user_inp = print_and_get_user_inp(opts)
+                if (handle_user_inp(opts, user_inp, dematicHandler=dematicMsgHandlerObj) == -1):
+                    break
+        except KeyboardInterrupt as e:
+            break
+        except Exception as e:
             break
 
 except Exception as e:

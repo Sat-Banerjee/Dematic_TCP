@@ -5,6 +5,7 @@ import traceback
 import fcntl, os
 import errno
 import time
+import datetime
 
 class LOG_DEST(enum.IntEnum):
     NO_LOG = 0
@@ -18,6 +19,11 @@ class CONFIG(enum.IntEnum):
 # ---------------
 def getTimeStamp():
     return float(time.time())
+
+def getFormattedTimeStamp():
+    today = datetime.datetime.today()
+    retval = str(today.strftime('%Y%m%d__%H%M%S_%f'))[:20]
+    return retval
 # ---------------
 
 class CustomLogger():
@@ -38,14 +44,16 @@ class CustomLogger():
             self.file_obj.close()
             self.file_obj = None    
 
-    def log(self, message):
+    def log(self, message, newLine=True):
         if not self.disable:
             if (self.log_dest == LOG_DEST.NO_LOG):
                 pass
             elif (self.log_dest == LOG_DEST.STDOUT):
                 print (message)
             elif (self.log_dest == LOG_DEST.FILE):
-                self.file_obj.write(str(message) + "\n")
+                self.file_obj.write(str(message))
+                if newLine:
+                    self.file_obj.write("\n")
                 self.file_obj.flush()
 
     def log_exception(self, e, traceback):
