@@ -1,7 +1,7 @@
 import util
 import time
 import datetime
-from queue import Queue
+from multiprocessing import Queue
 import traceback
 from threading import Lock, Timer
 

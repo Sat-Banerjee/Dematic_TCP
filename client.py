@@ -4,7 +4,7 @@ import traceback
 from threading import Thread
 import RxThread
 import DematicMsgHandler
-from queue import Queue
+from multiprocessing import Queue
 import sys
 import enum
 

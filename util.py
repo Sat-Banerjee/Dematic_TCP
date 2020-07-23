@@ -6,6 +6,7 @@ import fcntl, os
 import errno
 import time
 import datetime
+from multiprocessing import Queue
 
 class LOG_DEST(enum.IntEnum):
     NO_LOG = 0

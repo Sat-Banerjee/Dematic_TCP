@@ -1,6 +1,6 @@
 from threading import Thread
 import util
-from queue import Queue
+from multiprocessing import Queue
 import time
 import traceback
 
