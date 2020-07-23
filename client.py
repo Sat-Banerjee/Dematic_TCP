@@ -63,6 +63,9 @@ file_timestamp = util.getFormattedTimeStamp()
 myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_log_" + file_timestamp + ".txt")
 myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_life_rx_log_" + file_timestamp + ".txt")
 myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_ack_rx_log_" + file_timestamp + ".csv")
+msg_51_52_53_Logger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_msg_51_52_53_log_" + file_timestamp + ".txt")
+msg_56_Logger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_msg_56_log_" + file_timestamp + ".txt")
+msg_54_Logger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./client_msg_54_log_" + file_timestamp + ".txt")
 myAckLogger.log("Timestamp, Sequence No., Data Direction, Data")
 
 print ("------------------------------------------------------")
@@ -108,7 +111,11 @@ try:
                                                                 threadName="DematicMsgHandler",
                                                                 timeLogger=myTimeLogger,
                                                                 ackLogger=myAckLogger,
-                                                                validateMessage=True)
+                                                                msg_51_52_53_Logger=msg_51_52_53_Logger,
+                                                                msg_56_Logger=msg_56_Logger,
+                                                                msg_54_Logger=msg_54_Logger,
+                                                                validateMessage=True,
+                                                                iAmClient=True)
 
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 

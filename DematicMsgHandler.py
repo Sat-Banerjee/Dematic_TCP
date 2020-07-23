@@ -9,8 +9,7 @@ class DematicMsgHandler():
     def __init__(self, qName, sockObj, logger, 
                     keepAliveTime, userOptsEnum, threadName="", 
                     **kwargs):            
-                    # timeLogger=None, validateMessage=True):
-        
+
         self.qId = qName
         self.sockObj = sockObj
         self.logger = logger
@@ -25,10 +24,25 @@ class DematicMsgHandler():
         self.validateMessage = kwargs.get("validateMessage", True)
         self.timeLogger = kwargs.get("timeLogger", None)
         self.ackLogger = kwargs.get("ackLogger", None)
-        #self.seq_start_from = int (kwargs.get("seq_start_from", 0))
+        self.msg_51_52_53_Logger = kwargs.get("msg_51_52_53_Logger", None)
+        self.msg_56_Logger = kwargs.get("msg_56_Logger", None)
+        self.msg_54_Logger = kwargs.get("msg_54_Logger", None)
+        self.iAmClient = kwargs.get("iAmClient", False)
         self.lastLifeAt = util.getTimeStamp()
         self.ackList = list()
         self.myLifeCtr = 0
+        self.msg51TxCtr = 0
+        self.msg52TxCtr = 0
+        self.msg53TxCtr = 0
+        self.msg54TxCtr = 0
+        self.msg55TxCtr = 0
+        self.msg56TxCtr = 0
+        self.msg51RxCtr = 0
+        self.msg52RxCtr = 0
+        self.msg53RxCtr = 0
+        self.msg54RxCtr = 0
+        self.msg55RxCtr = 0
+        self.msg56RxCtr = 0
 
         # ----- counters for life timing -- 
         self.totalLifeMsg = 0
@@ -89,10 +103,20 @@ class DematicMsgHandler():
         if sInp == "Request_to_UnArm":
             strData = str(self.getStationId()) + "MSG052peripheral_groupid01peripheral_type001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
-        
+            self.msg52TxCtr += 1
+            if self.msg_51_52_53_Logger is not None:
+                self.msg_51_52_53_Logger.log("{} Sending MSG052. MSG052 Tx Count: {}, MSG053 Tx Count: {}".format(str(util.getTimeStamp()), 
+                                                                                                                    str(self.msg52TxCtr),
+                                                                                                                    str(self.msg53TxCtr)))
+
         elif sInp == "Request_to_Arm":  # Same as Request to move Ranger
             strData = str(self.getStationId()) + "MSG053peripheral_groupid01peripheral_type001timestamp" + util.getFormattedTimeStamp() 
             self.send_Data_Message(strData=strData)
+            self.msg53TxCtr += 1
+            if self.msg_51_52_53_Logger is not None:
+                self.msg_51_52_53_Logger.log("{} Sending MSG053. MSG053 Tx Count: {}, MSG052 Tx Count: {}".format(str(util.getTimeStamp()), 
+                                                                                                                    str(self.msg53TxCtr),
+                                                                                                                    str(self.msg52TxCtr)))
         
         elif sInp == "Peripheral_Emergency_Active":
             strData = str(self.getStationId()) + "MSG054peripheral_groupid01peripheral_type001emergency001timestamp" + util.getFormattedTimeStamp() 
@@ -189,6 +213,28 @@ class DematicMsgHandler():
     def processData(self, strData):
         self.logger.log("{}: Processing data: {}".format(str(self.tId), strData))
 
+        # client related actions
+        if ("MSG051" in strData):
+            self.msg51RxCtr += 1
+            if self.msg_51_52_53_Logger is not None:
+                self.msg_51_52_53_Logger.log("{} Received MSG051. Rx ctr: {}".format(str(util.getTimeStamp()), str(self.msg51RxCtr)))
+    
+        elif ("MSG056" in strData):
+            self.msg56RxCtr += 1
+            if self.msg_56_Logger is not None:
+                self.msg_56_Logger.log("{} Received MSG056. Rx ctr: {}".format(str(util.getTimeStamp()), str(self.msg56RxCtr)))
+    
+        elif ("MSG054" in strData):
+            self.msg54RxCtr += 1
+            if self.msg_54_Logger is not None:
+                self.msg_54_Logger.log("{} Received MSG054. Rx ctr: {}".format(str(util.getTimeStamp()), str(self.msg54RxCtr)))
+
+        # dummy plc (server) related actions
+        elif ("MSG052" in strData):
+            self.processInp(sInp="System_UnArmed")            
+        elif ("MSG053" in strData):
+            self.processInp(sInp="System_Armed")            
+
 
     def process_ACKN_message(self, message):
         self.logger.log("{}: Processing an ACKN message".format(str(self.tId)))
@@ -272,6 +318,17 @@ class DematicMsgHandler():
         self.keepAlivelock.acquire()
         self.fSendKeepAlive = True
         self.keepAlivelock.release()
+
+        if not self.iAmClient:
+            # Test Code to test MSG056
+            # If I am SERVER/PLC, send MSG056 periodically 
+            # Easier way is to use the LIFE timer to send this 
+            self.processInp("PLC_Status_Response")
+            # Test Code to test MSG054
+            if ((self.myLifeCtr % 2) == 0):
+                self.processInp(sInp="Peripheral_Emergency_Resolved")
+            else:
+                self.processInp(sInp="Peripheral_Emergency_Active")
 
         # start the timer, again
         self.startTimer()
