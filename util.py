@@ -61,12 +61,17 @@ class CustomLogger():
         self.log(traceback.format_exc())
 
 class SockUtil():
-    def __init__(self, config, rx_fn=None, enable_logs=True, logger=None):
+    def __init__(self, config, rx_fn=None, enable_logs=True, logger=None, retry=False):
         self.sock = None
         self.sConnection = None
         self.sClientAddress = None
         self.rx_callback = rx_fn
         self.config = config
+        self.sIP = None
+        self.iPORT = None
+        self.connectionCtr = 0
+        self.connectionRetry = retry
+        self.attemptingRetry = True
         self.outputFileName = None if logger is not None else str("./" + str(config.name) +"_util_logs.txt")
         self.logger = logger if logger is not None else CustomLogger(log_dest=LOG_DEST.FILE, fileName=self.outputFileName)
         self.logger.logs(disable= (not enable_logs))
@@ -82,6 +87,8 @@ class SockUtil():
 
     def bind(self, ip, port):
         try:
+            self.sIP = str(ip)
+            self.iPORT = int (port)
             serverAddress = (str(ip), int (port))
             self.sock.bind(serverAddress)
             self.logger.log("Sucessfully binded with the ip: {}, port: {}".format(str(ip), str(port)))
@@ -101,7 +108,9 @@ class SockUtil():
                 self.logger.log("Connection from: {}".format(str(self.sClientAddress)))
                 # non blocking socket
                 fcntl.fcntl(self.sConnection, fcntl.F_SETFL, os.O_NONBLOCK)
-
+                self.attemptingRetry = False
+                self.connectionCtr += 1
+                self.logger.log("Connection Counter: {}".format(str(self.connectionCtr)))
             else:
                 self.logger.log("I am configured as CLIENT, cannot call start_server()")
         except Exception as e:
@@ -126,19 +135,30 @@ class SockUtil():
 
     # called by a client
     def connect_to_server(self, ip, port):
-        try:
-            if (self.config == CONFIG.CLIENT):
-                serverAddress = (str(ip), port)
-                self.logger.log("Connecting to: {} : {}".format(str(ip), port))
-                self.sock.connect(serverAddress)
-                # non blocking socket
-                fcntl.fcntl(self.sock, fcntl.F_SETFL, os.O_NONBLOCK)
-
-            else:
-                self.logger.log("I am configured as SERVER, cannot call connect_to_server()")
-        except Exception as e:
-            self.logger.log("Error connecting to Server" + e.message)
-            self.logger.log_exception(e, traceback)
+        while (self.attemptingRetry):
+            try:
+                if (self.config == CONFIG.CLIENT):
+                    self.sIP = str(ip)
+                    self.iPORT = int (port)
+                    serverAddress = (str(ip), int(port))
+                    self.logger.log("Connecting to: {} : {}".format(str(ip), port))
+                    self.sock.connect(serverAddress)
+                    # non blocking socket
+                    fcntl.fcntl(self.sock, fcntl.F_SETFL, os.O_NONBLOCK)
+                    self.attemptingRetry = False
+                    self.connectionCtr += 1
+                    self.logger.log("Connection Counter: {}".format(str(self.connectionCtr)))
+                else:
+                    self.logger.log("I am configured as SERVER, cannot call connect_to_server()")
+                    self.attemptingRetry = False
+            except Exception as e:
+                self.logger.log("Error connecting to Server" + e.message)
+                self.logger.log_exception(e, traceback)
+                if (self.connectionRetry):  
+                    time.sleep(1)
+                else:
+                    # no retry
+                    break
 
     def send_data(self, message):
         try:
@@ -154,8 +174,28 @@ class SockUtil():
 
             if (err == errno.ECONNRESET) or \
                 (err == errno.ECONNABORTED) or \
-                (err == errno.EPIPE):
-                raise e
+                (err == errno.EPIPE) or \
+                (err == errno.EAGAIN):
+                if (self.connectionRetry):
+                    # give some time
+                    time.sleep(1)
+                    if not self.attemptingRetry:
+                        self.attemptingRetry = True
+                        if (self.config == CONFIG.CLIENT):
+                            self.close()
+                            time.sleep(0.500)
+                            self.create_socket()
+                            time.sleep(0.500)
+                            self.connect_to_server (ip=self.sIP, port=self.iPORT)
+                        elif (self.config == CONFIG.SERVER):
+                            self.start_server()
+                        else:
+                            self.logger.log("Cannot Retry as Wrong config in Util.. Exiting")                    
+                    else:
+                        self.logger.log ("Already attempting to retry..")
+                else:
+                    raise e
+
             else:
                 self.logger.log_exception(e, traceback)
 
@@ -190,7 +230,25 @@ class SockUtil():
                 elif (err == errno.ECONNRESET) or \
                 (err == errno.ECONNABORTED) or \
                 (err == errno.EPIPE):
-                    raise e
+                    if (self.connectionRetry):
+                        # give some time
+                        time.sleep(1)
+                        if not self.attemptingRetry:
+                            self.attemptingRetry = True
+                            if (self.config == CONFIG.CLIENT):
+                                self.close()
+                                time.sleep(0.500)
+                                self.create_socket()
+                                time.sleep(0.500)
+                                self.connect_to_server (ip=self.sIP, port=self.iPORT)
+                            elif (self.config == CONFIG.SERVER):
+                                self.start_server()
+                            else:
+                                self.logger.log("Cannot Retry as Wrong config in Util.. Exiting")                    
+                        else:
+                            self.logger.log ("Already attempting to retry..")
+                    else:
+                        raise e
 
             #break
 

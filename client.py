@@ -50,12 +50,12 @@ def handle_user_inp(opts, user_inp, dematicHandler):
 
 # command line args
 if (len(sys.argv) < 3):
-    print ("Invalid no. of command line args. Usage python {} <ip> <port> <o: loop-time>".format(sys.argv[0]))
+    print ("Invalid no. of command line args. Usage python {} <ip> <port> <o: loop-time> <o: retry>".format(sys.argv[0]))
     exit(-1)
 
 ip = str(sys.argv[1])
 port = int(sys.argv[2])
-
+connectionRetry = False
 loopTime = None
 
 keep_alive_time = 6  # secs
@@ -75,7 +75,14 @@ else:
     myLogger.log("\n{} ----------------- NEW SESSION -----------------".format(str(util.getTimeStamp())))
 print ("------------------------------------------------------")
 
-myClient = util.SockUtil(util.CONFIG.CLIENT, logger=myLogger)
+try:
+    connectionRetry = bool (sys.argv[4])
+except Exception as e:
+    pass
+
+myLogger.log ("Connection Retry: {}".format(str(connectionRetry)))
+
+myClient = util.SockUtil(util.CONFIG.CLIENT, logger=myLogger, retry=connectionRetry)
 
 myClient.create_socket()
 myClient.connect_to_server(ip, port)

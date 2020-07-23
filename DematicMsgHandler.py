@@ -84,7 +84,7 @@ class DematicMsgHandler():
         return "0151"
 
     def processInp(self, sInp):
-        self.logger.log("{}: Processing input: {}".format(str(self.tId), sInp))
+        self.logger.log("{}: Handling User input: {}".format(str(self.tId), sInp))
 
         if sInp == "Request_to_UnArm":
             strData = str(self.getStationId()) + "MSG052peripheral_groupid01peripheral_type001timestamp" + util.getFormattedTimeStamp() 
@@ -310,21 +310,30 @@ class DematicMsgHandler():
 
         self.logger.log("{}: Pending ack to match: {}".format(str(self.tId), str(len(self.ackList))))  
         # log the pending acks if any 
-        # if (len(self.ackList) > 0):
-        #     for ack in self.ackList:
-        #         self.logger.log("\t {}".format(ack))
+        if (len(self.ackList) > 0):
+            self.logger.log("----------------------------------------")
+            for ack in self.ackList:
+                self.logger.log("{} , ".format(ack), newLine=False)
 
+        self.logger.log("", newLine=True)
+        self.logger.log("----------------------------------------")
+        self.logger.log("", newLine=True)
 
     def send_Stat_Message(self, strData):
         strMsg, seqNo = self.prepareDematicStructuredData(mType="STAT", strData=strData)
-        self.logger.log("{}: Sending Data message: {}".format(str(self.tId), strMsg))
+        self.logger.log("{}: Sending Stat message: {}".format(str(self.tId), strMsg))
         self.sendMessage(message=strMsg)
 
         self.logger.log("{}: Pending ack to match: {}".format(str(self.tId), str(len(self.ackList))))  
-        # log the pending acks if any
+        # log the pending acks if any 
         if (len(self.ackList) > 0):
+            self.logger.log("----------------------------------------")
             for ack in self.ackList:
-                self.logger.log("\t {}".format(ack))
+                self.logger.log("{}, ".format(ack), newLine=False)
+
+        self.logger.log("", newLine=True)
+        self.logger.log("----------------------------------------")
+        self.logger.log("", newLine=True)
 
 
     def validateMsg(self, sMessage):
