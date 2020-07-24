@@ -6,7 +6,8 @@ import fcntl, os
 import errno
 import time
 import datetime
-from multiprocessing import Queue
+#from multiprocessing import Queue
+import Queue
 
 class LOG_DEST(enum.IntEnum):
     NO_LOG = 0
@@ -207,50 +208,51 @@ class SockUtil():
 
         #self.logger.log("Received data: {} bytes".format(data_received))
 
-        while (data_received < expected_data_len):
-            try:
-                if self.config == CONFIG.CLIENT:
-                    data = self.sock.recv(expected_data_len)
-                else:
-                    # server
-                    data = self.sConnection.recv(expected_data_len)
+        #while (data_received < expected_data_len):
+        try:
+            if self.config == CONFIG.CLIENT:
+                data = self.sock.recv(expected_data_len)
+            else:
+                # server
+                data = self.sConnection.recv(expected_data_len)
 
-                if data:
-                    data_received += len(data)
-                    self.logger.log("{}: Receiving data: {} bytes, data: {}".format(str(getTimeStamp()), data_received, data))
-                else:
-                    #self.logger.log("No more data coming from {}".format(self.sClientAddress))
-                    raise (Exception(errno.ECONNABORTED))
+            if data:
+                data_received += len(data)
+                self.logger.log("{}: Receiving data: {} bytes, data: {}".format(str(getTimeStamp()), data_received, data))
+            else:
+                #self.logger.log("No more data coming from {}".format(self.sClientAddress))
+                raise (Exception(errno.ECONNABORTED))
 
-            except Exception as e:
-                err = e.args[0]
-                if (err == errno.EAGAIN) or (err == errno.EWOULDBLOCK):
-                    #self.logger.log("No data available on port")
-                    break
+        except Exception as e:
+            err = e.args[0]
+            if (err == errno.EAGAIN) or (err == errno.EWOULDBLOCK):
+                #self.logger.log("No data available on port")
+                #break
+                pass
 
-                elif (err == errno.ECONNRESET) or \
-                (err == errno.ECONNABORTED) or \
-                (err == errno.EPIPE):
-                    if (self.connectionRetry):
-                        # give some time
-                        time.sleep(1)
-                        if not self.attemptingRetry:
-                            self.attemptingRetry = True
-                            if (self.config == CONFIG.CLIENT):
-                                self.close()
-                                time.sleep(0.500)
-                                self.create_socket()
-                                time.sleep(0.500)
-                                self.connect_to_server (ip=self.sIP, port=self.iPORT)
-                            elif (self.config == CONFIG.SERVER):
-                                self.start_server()
-                            else:
-                                self.logger.log("Cannot Retry as Wrong config in Util.. Exiting")                    
+            elif (err == errno.ECONNRESET) or \
+            (err == errno.ECONNABORTED) or \
+            (err == errno.EPIPE):
+                if (self.connectionRetry):
+                    # give some time
+                    time.sleep(1)
+                    if not self.attemptingRetry:
+                        self.attemptingRetry = True
+                        if (self.config == CONFIG.CLIENT):
+                            self.close()
+                            time.sleep(0.500)
+                            self.create_socket()
+                            time.sleep(0.500)
+                            self.connect_to_server (ip=self.sIP, port=self.iPORT)
+                        elif (self.config == CONFIG.SERVER):
+                            self.start_server()
                         else:
-                            self.logger.log ("Already attempting to retry..")
+                            self.logger.log("Cannot Retry as Wrong config in Util.. Exiting")                    
                     else:
-                        raise e
+                        self.logger.log ("Already attempting to retry..")
+                else:
+                    raise e
 
-            #break
+        #break
 
         return (data, data_received)

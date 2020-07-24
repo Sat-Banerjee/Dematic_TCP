@@ -1,7 +1,8 @@
 import util
 import time
 import datetime
-from multiprocessing import Queue
+#from multiprocessing import Queue
+import Queue
 import traceback
 from threading import Lock, Timer
 
@@ -66,6 +67,8 @@ class DematicMsgHandler():
         self.processing_fn_dict["STAT"] = self.process_STAT_message
 
         self.logger.log("{}: Incoming Message Validation set to: {}".format(str(self.tId), str(self.validateMessage)))            
+
+        self.stopThread = False
 
     def cancelTimer(self):
         try:
@@ -170,7 +173,26 @@ class DematicMsgHandler():
 
         return strData
         
-    def process_Rx_Message(self, message):
+    # This method runs in its own thread
+    def getAndProcessMessageFromQ(self):
+        while (not self.stopThread):
+            try:
+                if (not self.qId.empty()):
+                    qData = self.qId.get_nowait()
+                    self.logger.log("Got a data from queue, pending data in Q: {}".format(str(self.qId.qsize())))
+                    qData[0](qData[1])
+                    #self.process_Rx_Message(message=qData)
+                else:
+                    # Queue is empty now. Lets wait for some ms 
+                    time.sleep(0.100)
+            except Exception as e:
+                self.logger.log_exception(e, traceback)
+                time.sleep (0.100)
+
+        self.logger.log ("{} - Exiting process thread".format(str(self.tId)))
+
+
+    def process_Rx_Message(self, message):        
         self.logger.log("{} {}: Processing message: {}".format(str(util.getTimeStamp()), str(self.tId), str(message)))
         try:
             if ((not self.validateMessage) or (self.validateMsg(sMessage=message))):

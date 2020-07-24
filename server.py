@@ -4,7 +4,8 @@ import traceback
 from threading import Thread
 import RxThread
 import DematicMsgHandler
-from multiprocessing import Queue
+#from multiprocessing import Queue
+import Queue
 import sys
 import enum
 
@@ -98,7 +99,7 @@ try:
     userOpts = ServerUserOpts
 
     # create the Q for threads to communicate
-    threadQ = Queue(maxsize=0)      # infinite size
+    threadQ = Queue.Queue(maxsize=0)      # infinite size
 
     # Dematic Message Handler Obj
     dematicMsgHandlerObj = DematicMsgHandler.DematicMsgHandler(qName=threadQ,
@@ -117,7 +118,14 @@ try:
                                     sockObj=myServer, 
                                     logger=myLogger,
                                     decodeFn=dematicMsgHandlerObj.process_Rx_Message, 
+                                    exp_data_size=500,
                                     threadName="RxThread")
+
+    # create the Dematic processing thread 
+    dematicThreadObj = Thread(target=dematicMsgHandlerObj.getAndProcessMessageFromQ)
+    
+    # start the dematic processing thread
+    dematicThreadObj.start()
 
     # start the server, for incoming connections
     myServer.start_server()
@@ -154,12 +162,15 @@ except Exception as e:
     print ("I am in main exception handling")
     myLogger.log_exception(e, traceback)
     rxThreadObj.stop_thread = True
+    dematicMsgHandlerObj.stopThread = True
 
 
 # wait for rx thread to join
 rxThreadObj.stop_thread = True
+dematicMsgHandlerObj.stopThread = True
 dematicMsgHandlerObj.cancelTimer()
 rxThreadObj.join(2.0)   # join timeout
+dematicThreadObj.join(2.0)
 
 myServer.close()
 myLogger.log("Exiting Server.py")

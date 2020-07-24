@@ -1,6 +1,7 @@
 from threading import Thread
 import util
-from multiprocessing import Queue
+#from multiprocessing import Queue
+import Queue
 import time
 import traceback
 
@@ -18,14 +19,14 @@ class RxThread(Thread):
     def run(self):
         data = None
         dataLen = 0
-        # See the socket for any rx data, directly call decodeFn()
+        # See the socket for any rx data, directly call decodeFn() if available, else add to the given queue
         while not self.stop_thread:
             try:
                 data, dataLen = self.sockObj.receive_data(expected_data_len=self.exp_data_size)
     
                 if data is not None:
                     self.logger.log("{} - {}: data received {} bytes: {}".format(str(util.getTimeStamp()), str(self.tId), str(dataLen), data))
-                    self.decodeFn(message=data)
+                    self.qId.put((self.decodeFn, data))
                 else:
                     time.sleep(0.300)   # 300 ms
             except Exception as e:

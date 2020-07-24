@@ -4,7 +4,8 @@ import traceback
 from threading import Thread
 import RxThread
 import DematicMsgHandler
-from multiprocessing import Queue
+#from multiprocessing import Queue
+import Queue
 import sys
 import enum
 
@@ -42,7 +43,8 @@ def handle_user_inp(opts, user_inp, dematicHandler):
         retval = -1
 
     else:
-        dematicHandler.processUserInp(user_inp)    
+        threadQ.put((dematicHandler.processUserInp, user_inp))
+        # dematicHandler.processUserInp(user_inp)    
 
     return retval
 
@@ -100,7 +102,7 @@ try:
     opts = ClientUserOpts
 
     # create the Q for threads to communicate
-    threadQ = Queue(maxsize=0)      # infinite size
+    threadQ = Queue.Queue(maxsize=0)      # infinite size
 
     # Dematic Message Handler Obj
     dematicMsgHandlerObj = DematicMsgHandler.DematicMsgHandler(qName=threadQ,
@@ -121,8 +123,16 @@ try:
     rxThreadObj = RxThread.RxThread(qName=threadQ, 
                                     sockObj=myClient, 
                                     logger=myLogger,
-                                    decodeFn=dematicMsgHandlerObj.process_Rx_Message, 
+                                    decodeFn=dematicMsgHandlerObj.process_Rx_Message,
+                                    exp_data_size=500,
+                                    #decodeFn=None,
                                     threadName="RxThread")
+
+    # create the Dematic processing thread 
+    dematicThreadObj = Thread(target=dematicMsgHandlerObj.getAndProcessMessageFromQ)
+    
+    # start the dematic processing thread
+    dematicThreadObj.start()
 
     # start the rx thread 
     rxThreadObj.start()
@@ -151,12 +161,15 @@ try:
 except Exception as e:
     myLogger.log_exception(e, traceback)
     rxThreadObj.stop_thread = True
-
+    dematicMsgHandlerObj.stopThread = True
 
 # wait for rx thread to join
 rxThreadObj.stop_thread = True
+dematicMsgHandlerObj.stopThread = True
 dematicMsgHandlerObj.cancelTimer()
 rxThreadObj.join(2.0)   # join timeout
+dematicThreadObj.join(2.0)
+
 
 myClient.close()
 myLogger.log("Exiting Client.py")
