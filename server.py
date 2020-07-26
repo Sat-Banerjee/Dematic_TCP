@@ -4,10 +4,10 @@ import traceback
 from threading import Thread
 import RxThread
 import DematicMsgHandler
-#from multiprocessing import Queue
 import Queue
 import sys
 import enum
+import argparse
 
 # --------------------------------------------------------
 
@@ -51,36 +51,130 @@ def handle_user_inp(opts, user_inp, dematicHandler):
     return retval
 
 # ------------------------------------------------------------
-# command line args
-if (len(sys.argv) < 3):
-    print ("Invalid no. of command line args. Usage python {} <ip> <port> <o: loop-time> <o: retry>".format(sys.argv[0]))
-    exit(-1)
+# -------------------------------
+# New CLI --
+# -------------------------------
+client_cli_parser = argparse.ArgumentParser(description="A simple TCP/IP Server. Currently implemented as a Dummy PLC which connects to a TCP/IP Client",
+                                            epilog="for any issues, please contact Satyajeet Banerjee : satyajeet.b@greyorange.com\n")
+client_cli_parser.version = "1.0"
 
-ip = str(sys.argv[1])
-port = int(sys.argv[2])
-loopTime = None
-connectionRetry = False
+# Positional Args
+client_cli_parser.add_argument("ip", type=str, help="IP of the TCP/IP client you want to connect")
+client_cli_parser.add_argument("port", type=int, help="Port of the TCP/IP client to which you want to connect")
 
-keep_alive_time = 6   # secs
-fileCreationTime = util.getFormattedTimeStamp()
-myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_log_" + fileCreationTime + ".txt")
-myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_life_rx_log_" + fileCreationTime + ".txt")
-myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName="./server_ack_rx_log_" + fileCreationTime + ".csv")
+# Optional Args
+client_cli_parser.add_argument("-cr", "--con_retry", action="store_true", help="Enable Connection Retry. Disabled by default")
+client_cli_parser.add_argument("-lt", "--loop_time", action="store", type=float, help="Provide a time period for automated data packets transmission. If not, the user options are shown which \
+                                                                                        allows for manual sending of data packets.\
+                                                                                        Conflicts with logging to stdout [-ls]",
+                                                                                        default=None)
+client_cli_parser.add_argument("-dal", "--disable_ack_logs", action="store_false", help="Disable separate logging of the ACK messages received. \
+                                                                                            Enabled by default")
+client_cli_parser.add_argument("-dll", "--disable_life_logs", action="store_false", help="Disable separate logging of the LIFE messages received \
+                                                                                            Enabled by default")                                                                        
+# client_cli_parser.add_argument("-d51", "--disable_msg051_logs", action="store_false", help="Disable MSG051 logs. This logs the [outgoing] MSG052, MSG053 \
+#                                                                                                 and [incoming] MSG051. Enabled by default")
+# client_cli_parser.add_argument("-d54", "--disable_msg054_logs", action="store_false", help="Disable MSG054 logs. This logs the [incoming] MSG054. Enabled by default")
+# client_cli_parser.add_argument("-d56", "--disable_msg056_logs", action="store_false", help="Disable MSG051 logs. This logs the [incoming] MSG056. Enabled by default")
+client_cli_parser.add_argument("-k", "--keep_alive_time", action="store", type=float, default=6.0, help="Specify the LIFE message time interval. Defaults to 6.0 secs")
+client_cli_parser.add_argument("-lf", "--logs_folder", action="store", type=str, default="./", help="Specify a folder for the logs to be saved. \
+                                                                                                        Defaults to the current dir")
+client_cli_parser.add_argument("-dv", "--disable_validation", action="store_false", help="Disable incoming messages validation. \
+                                                                                            Enabled by default.")
+client_cli_parser.add_argument("-dct", "--disable_creation_timestamp", action="store_false", help="Don't add creation timestamp to log file name. \
+                                                                                                Enabled by default.")
+client_cli_parser.add_argument("-ls", "--log_to_stdout", action="store_true", help="Print all logs generated on STDOUT instead of log files.\
+                                                                                        Disabled by default.")
+# Parse the passed args
+client_args = client_cli_parser.parse_args()
 
-print ("------------------------------------------------------")
-if (len(sys.argv) >= 4):
-    loopTime = float(sys.argv[3])
-    print ("Dummy DEMATIC PLC (Automated for Sending)")
-    myLogger.log("\n----------------- NEW SESSION (Automated for Sending) -----------------")
+# ---------------------------------
+print ("Using the following params for this session:")
+print ("------------------------------------------")
+# --
+ip = client_args.ip
+print ("**** IP: {}".format(ip))
+
+port = client_args.port
+print ("**** PORT: {}".format(str(port)))
+# --
+keep_alive_time = client_args.keep_alive_time  # secs
+print ("**** Keep Alive Time: {} secs".format(str(keep_alive_time)))
+# --
+log_folder = client_args.logs_folder
+print ("**** Logs Folder: {}".format(str(log_folder)))
+# --
+connectionRetry = client_args.con_retry
+print ("**** Connection Retry: {}".format(str(connectionRetry)))
+# --
+loop_time = client_args.loop_time
+if loop_time is not None:
+    print ("**** Loop Time: {} secs".format(str(loop_time)))
 else:
-    print ("Dummy DEMATIC PLC with User Options)")
-    myLogger.log("\n----------------- NEW SESSION -----------------")
-print ("------------------------------------------------------")
+    print ("**** Loop disabled")
+# --
+message_validation = client_args.disable_validation
+print ("**** Incoming Message Validation: {}".format(str(message_validation)))
+# --
+enable_creation_timestamp = client_args.disable_creation_timestamp
+print ("**** enable_creation_timestamp: {}".format(str(enable_creation_timestamp)))
+#--
+log_to_stdout = client_args.log_to_stdout
+print ("**** log to stdout: {}".format(str(log_to_stdout)))
+# --
+enable_ack_logs = client_args.disable_ack_logs
+print ("**** [Rx] ACK Logs: {}".format(str(enable_ack_logs)))
+# --
+enable_life_logs = client_args.disable_life_logs
+print ("**** [Rx] LIFE Logs: {}".format(str(enable_life_logs)))
+# --
+print ("------------------------------------------------------\n")
+
+# Check for interconnected errors due to various CLI options 
+if (log_to_stdout and (loop_time is None)):
+    print ("* Cannot proceed because: Cannot show user options as logging to STDOUT is enabled.")
+    sys.exit(-1)
+
+# CLI parsing ends
+# ---------------------------------# ---------------------------------
+if enable_creation_timestamp:
+    file_timestamp = "_" + util.getFormattedTimeStamp()
+else:
+    file_timestamp=""
+
+if log_to_stdout:
+    log_dest = util.LOG_DEST.STDOUT
+    print ("--** WARNING **-- This will generate huge output on STDOUT.\n")
+else:
+    log_dest = util.LOG_DEST.FILE
+
+if (log_folder[-1] != "/"):
+    log_folder += "/"
 
 try:
-    connectionRetry = bool (sys.argv[4])
+    myLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName= log_folder + "server_log" + file_timestamp + ".txt")
+
+    if (enable_life_logs):
+        myTimeLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName= log_folder + "server_life_rx_log" + file_timestamp + ".txt")
+    else:
+        myTimeLogger = None
+
+    if (enable_ack_logs):
+        myAckLogger = util.CustomLogger(log_dest=util.LOG_DEST.FILE, fileName= log_folder + "server_ack_rx_log" + file_timestamp + ".csv")
+    else:
+        myAckLogger = None
+
+    if (loop_time is not None):
+        print ("Dummy Dematic PLC (Automated for Sending)")
+        myLogger.log("\n{} ----------------- NEW SESSION Automated for Sending -----------------".format(str(util.getTimeStamp())))
+    else:
+        print ("Dummy Dematic PLC with user Options")
+        myLogger.log("\n{} ----------------- NEW SESSION -----------------".format(str(util.getTimeStamp())))
+
 except Exception as e:
-    pass
+    print (str(e))
+    print (traceback.format_exc())
+    sys.exit(-1)
 
 myLogger.log ("Connection Retry: {}".format(str(connectionRetry)))
 
@@ -138,17 +232,17 @@ try:
 
     while(not rxThreadObj.stop_thread):
         try:
-            if loopTime is not None:
+            if loop_time is not None:
                 dematicMsgHandlerObj.processUserInp(1)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
                 dematicMsgHandlerObj.processUserInp(2)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
                 dematicMsgHandlerObj.processUserInp(3)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
                 dematicMsgHandlerObj.processUserInp(4)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
                 dematicMsgHandlerObj.processUserInp(5)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
             else:
                 user_inp = print_and_get_user_inp(userOpts)
                 if (handle_user_inp(userOpts, user_inp, dematicHandler=dematicMsgHandlerObj) == -1):

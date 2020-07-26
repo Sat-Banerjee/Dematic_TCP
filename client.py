@@ -12,7 +12,6 @@ import argparse
 class ClientUserOpts(enum.IntEnum):
     Request_to_UnArm = 1,
     Request_to_Arm = 2,     # Same as Request to move Ranger
-    #Stop_Moving_Ranger = 3,
     Request_PLC_Status = 3,
     Exit_App = 20
 
@@ -44,21 +43,8 @@ def handle_user_inp(opts, user_inp, dematicHandler):
 
     else:
         threadQ.put((dematicHandler.processUserInp, user_inp))
-        # dematicHandler.processUserInp(user_inp)    
 
     return retval
-
-# ------------------------------------------------------------
-
-# # command line args
-# if (len(sys.argv) < 3):
-#     print ("Invalid no. of command line args. Usage python {} <ip> <port> <o: loop-time> <o: retry>".format(sys.argv[0]))
-#     exit(-1)
-
-# ip = str(sys.argv[1])
-# port = int(sys.argv[2])
-# connectionRetry = False
-# loopTime = None
 
 # -------------------------------
 # New CLI --
@@ -131,11 +117,11 @@ print ("**** enable_creation_timestamp: {}".format(str(enable_creation_timestamp
 log_to_stdout = client_args.log_to_stdout
 print ("**** log to stdout: {}".format(str(log_to_stdout)))
 # --
-disable_ack_logs = client_args.disable_ack_logs
-print ("**** [Rx] ACK Logs: {}".format(str(disable_ack_logs)))
+enable_ack_logs = client_args.disable_ack_logs
+print ("**** [Rx] ACK Logs: {}".format(str(enable_ack_logs)))
 # --
-disable_life_logs = client_args.disable_life_logs
-print ("**** [Rx] LIFE Logs: {}".format(str(disable_life_logs)))
+enable_life_logs = client_args.disable_life_logs
+print ("**** [Rx] LIFE Logs: {}".format(str(enable_life_logs)))
 # --
 enable_51_logging = client_args.disable_msg051_logs
 print ("**** MSG051 Logs: {}".format(str(enable_51_logging)))
@@ -170,12 +156,12 @@ if (log_folder[-1] != "/"):
 try:
     myLogger = util.CustomLogger(log_dest=log_dest, fileName= log_folder + "client_log" + file_timestamp + ".txt")
     
-    if (not disable_life_logs):
+    if (enable_life_logs):
         myTimeLogger = util.CustomLogger(log_dest=log_dest, fileName= log_folder + "client_life_rx_log" + file_timestamp + ".txt")
     else:
         myTimeLogger = None
 
-    if (not disable_ack_logs):
+    if (enable_ack_logs):
         myAckLogger = util.CustomLogger(log_dest=log_dest, fileName= log_folder + "client_ack_rx_log" + file_timestamp + ".csv")
         myAckLogger.log("Timestamp, Sequence No., Data Direction, Data")
     else:
@@ -224,6 +210,7 @@ try:
 
     # create the Q for threads to communicate
     threadQ = Queue.Queue(maxsize=0)      # infinite size
+
     # Dematic Message Handler Obj
     dematicMsgHandlerObj = DematicMsgHandler.DematicMsgHandler(qName=threadQ,
                                                                 userOptsEnum=opts,
@@ -245,7 +232,6 @@ try:
                                     logger=myLogger,
                                     decodeFn=dematicMsgHandlerObj.process_Rx_Message,
                                     exp_data_size=500,
-                                    #decodeFn=None,
                                     threadName="RxThread")
 
     # create the Dematic processing thread 
