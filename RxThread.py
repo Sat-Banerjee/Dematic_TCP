@@ -30,7 +30,6 @@ class RxThread(Thread):
                 else:
                     time.sleep(0.300)   # 300 ms
             except Exception as e:
-                print ("At 0.1 Ex")
                 self.logger.log_exception(e, traceback)
                 # only errors which could not be handled internally are thrown, hence quit now
                 self.stop_thread = True

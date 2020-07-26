@@ -189,7 +189,7 @@ try:
     if (enable_56_logging):
         msg_56_Logger = util.CustomLogger(log_dest=log_dest, fileName= log_folder + "client_msg_56_log" + file_timestamp + ".txt")
     else:
-        enable_56_logging = None
+        msg_56_Logger = None
 
     if (enable_54_logging):
         msg_54_Logger = util.CustomLogger(log_dest=log_dest, fileName= log_folder + "client_msg_54_log" + file_timestamp + ".txt")
@@ -212,19 +212,18 @@ except Exception as e:
     print (traceback.format_exc())
     sys.exit(-1)
 
-print ("At 1")
+
 data = None
 dataLen = 0
 
 ctr = 1
-print ("At 2")
+
 try:
     # user opts
     opts = ClientUserOpts
 
     # create the Q for threads to communicate
     threadQ = Queue.Queue(maxsize=0)      # infinite size
-    print ("At 3")
     # Dematic Message Handler Obj
     dematicMsgHandlerObj = DematicMsgHandler.DematicMsgHandler(qName=threadQ,
                                                                 userOptsEnum=opts,
@@ -239,7 +238,7 @@ try:
                                                                 msg_54_Logger=msg_54_Logger,
                                                                 validateMessage=message_validation,
                                                                 iAmClient=True)
-    print ("At 4")
+
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 
                                     sockObj=myClient, 
@@ -248,45 +247,44 @@ try:
                                     exp_data_size=500,
                                     #decodeFn=None,
                                     threadName="RxThread")
-    print ("At 5")
+
     # create the Dematic processing thread 
     dematicThreadObj = Thread(target=dematicMsgHandlerObj.getAndProcessMessageFromQ)
-    print ("At 6")
+
     # start the dematic processing thread
     dematicThreadObj.start()
-    print ("At 7")
+
     # start the rx thread 
     rxThreadObj.start()
-    print ("At 8")
+
     # start the timer
     dematicMsgHandlerObj.startTimer()
-    print ("At 9")
+
     while(not rxThreadObj.stop_thread):
         try:
-            print ("At 10")
-            if loopTime is not None:
+            if loop_time is not None:
                 dematicMsgHandlerObj.processUserInp(1)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
                 dematicMsgHandlerObj.processUserInp(2)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
                 dematicMsgHandlerObj.processUserInp(3)
-                time.sleep (loopTime)
+                time.sleep (loop_time)
             else:
                 user_inp = print_and_get_user_inp(opts)
                 if (handle_user_inp(opts, user_inp, dematicHandler=dematicMsgHandlerObj) == -1):
                     break
         except KeyboardInterrupt as e:
+            myLogger.log_exception(e, traceback)
             break
         except Exception as e:
+            myLogger.log_exception(e, traceback)
             break
 
 except Exception as e:
-    print ("At 11. Ex")
     myLogger.log_exception(e, traceback)
     rxThreadObj.stop_thread = True
     dematicMsgHandlerObj.stopThread = True
 
-print ("At 12")
 # wait for rx thread to join
 rxThreadObj.stop_thread = True
 dematicMsgHandlerObj.stopThread = True
