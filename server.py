@@ -8,6 +8,7 @@ import Queue
 import sys
 import enum
 import argparse
+import os.path
 
 # --------------------------------------------------------
 
@@ -78,6 +79,7 @@ client_cli_parser.add_argument("-dll", "--disable_life_logs", action="store_fals
 # client_cli_parser.add_argument("-d56", "--disable_msg056_logs", action="store_false", help="Disable MSG051 logs. This logs the [incoming] MSG056. Enabled by default")
 client_cli_parser.add_argument("-k", "--keep_alive_time", action="store", type=float, default=6.0, help="Specify the LIFE message time interval. Defaults to 6.0 secs")
 client_cli_parser.add_argument("-lf", "--logs_folder", action="store", type=str, default="./", help="Specify a folder for the logs to be saved. \
+                                                                                                        Folder will be created if not found. \
                                                                                                         Defaults to the current dir")
 client_cli_parser.add_argument("-dv", "--disable_validation", action="store_false", help="Disable incoming messages validation. \
                                                                                             Enabled by default.")
@@ -103,6 +105,9 @@ print ("**** Keep Alive Time: {} secs".format(str(keep_alive_time)))
 # --
 log_folder = client_args.logs_folder
 print ("**** Logs Folder: {}".format(str(log_folder)))
+if (not os.path.isdir(log_folder)):
+    print ("\t ** The specified log folder: {} does not exist. Creating the folder.".format(log_folder))
+    os.mkdir(log_folder)
 # --
 connectionRetry = client_args.con_retry
 print ("**** Connection Retry: {}".format(str(connectionRetry)))
