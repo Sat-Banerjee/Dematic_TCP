@@ -29,14 +29,14 @@ def getFormattedTimeStamp():
 # ---------------
 
 class CustomLogger():
-    def __init__(self, log_dest, fileName=None):
+    def __init__(self, log_dest, fileName=None, mode="w"):
         self.log_dest = log_dest
         self.fileName = fileName
         self.file_obj = None
         self.disable = False
 
         if (self.log_dest == LOG_DEST.FILE):
-            self.file_obj = open(self.fileName, "a+")
+            self.file_obj = open(self.fileName, mode)
 
     def logs(self, disable):
         self.disable = disable
