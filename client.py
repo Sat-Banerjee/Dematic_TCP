@@ -82,6 +82,8 @@ client_cli_parser.add_argument("-dct", "--disable_creation_timestamp", action="s
                                                                                                 Enabled by default.")
 client_cli_parser.add_argument("-ls", "--log_to_stdout", action="store_true", help="Print all logs generated on STDOUT instead of log files.\
                                                                                         Disabled by default.")
+client_cli_parser.add_argument("-echo", "--enable_echo_mode", action="store_true", help="Enable the echo mode for client. Client sends back the message received from server\
+                                                                                        Disabled by default.")
 # Parse the passed args
 client_args = client_cli_parser.parse_args()
 
@@ -134,6 +136,9 @@ enable_54_logging = client_args.disable_msg054_logs
 print ("**** [Rx] MSG054 Logs: {}".format(str(enable_54_logging)))
 enable_56_logging = client_args.disable_msg056_logs
 print ("**** [Rx] MSG056 Logs: {}".format(str(enable_56_logging)))
+# --
+enable_echo_mode = client_args.enable_echo_mode
+print ("**** Echo Mode: {}".format(str(enable_echo_mode)))
 # --
 print ("------------------------------------------------------\n")
 
@@ -229,7 +234,8 @@ try:
                                                                 msg_56_Logger=msg_56_Logger,
                                                                 msg_54_Logger=msg_54_Logger,
                                                                 validateMessage=message_validation,
-                                                                iAmClient=True)
+                                                                iAmClient=True,
+                                                                enable_echo_mode=enable_echo_mode)
 
     # create the Rx thread obj
     rxThreadObj = RxThread.RxThread(qName=threadQ, 
