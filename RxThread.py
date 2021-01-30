@@ -19,7 +19,7 @@ class RxThread(Thread):
     def run(self):
         data = None
         dataLen = 0
-        # See the socket for any rx data, directly call decodeFn() if available, else add to the given queue
+        # See the socket for any rx data and add to the given queue
         while not self.stop_thread:
             try:
                 data, dataLen = self.sockObj.receive_data(expected_data_len=self.exp_data_size)

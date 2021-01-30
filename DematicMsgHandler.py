@@ -29,6 +29,7 @@ class DematicMsgHandler():
         self.msg_56_Logger = kwargs.get("msg_56_Logger", None)
         self.msg_54_Logger = kwargs.get("msg_54_Logger", None)
         self.iAmClient = kwargs.get("iAmClient", False)
+        self.echo_mode = kwargs.get("enable_echo_mode", False)
         self.lastLifeAt = util.getTimeStamp()
         self.ackList = list()
         self.myLifeCtr = 0
@@ -65,8 +66,12 @@ class DematicMsgHandler():
         self.processing_fn_dict["ACKN"] = self.process_ACKN_message
         self.processing_fn_dict["LIFE"] = self.process_LIFE_message
         self.processing_fn_dict["STAT"] = self.process_STAT_message
+        self.processing_fn_dict["ECHO"] = self.process_ECHO_message
 
-        self.logger.log("{}: Incoming Message Validation set to: {}".format(str(self.tId), str(self.validateMessage)))            
+        self.logger.log("{}: Incoming Message Validation set to: {}".format(str(self.tId), str(self.validateMessage)))
+
+        if self.echo_mode : 
+            self.logger.log("{}: Echo Mode enabled".format(str(self.tId)))            
 
         self.stopThread = False
 
@@ -195,26 +200,31 @@ class DematicMsgHandler():
     def process_Rx_Message(self, message):        
         self.logger.log("{} {}: Processing message: {}".format(str(util.getTimeStamp()), str(self.tId), str(message)))
         try:
-            if ((not self.validateMessage) or (self.validateMsg(sMessage=message))):
-                for mType, fnPtr in self.processing_fn_dict.items():
-                    if mType in message:
-                        fnPtr(message)
-                        break
-            elif (not self.validateMsg(sMessage=message)):
-                # check if multiple messages are received ?
-                count = message.count(str(self.bSTX))
-                if count > 1 : 
-                    # we have received multiple messages
-                    self.logger.log("{}: Multiple ({}) Messages Received".format(str(self.tId), str(count)))
-                    searchMsg = message
-                    while (searchMsg.find(str(self.bSTX)) != -1):
-                        # starts with STX
-                        partSize = int(searchMsg[1:5])
-                        partMessage = searchMsg[:partSize]
-                        self.process_Rx_Message(message=partMessage)
-                        searchMsg = searchMsg[partSize:]
+            if self.echo_mode:
+                # echo mode enabled, this client is used as an echo client.
+                # Just revert back with the same data
+                self.sendMessage(message=message)
             else:
-                self.logger.log("{}: Invalid message received, ignoring".format(str(self.tId)))
+                if ((not self.validateMessage) or (self.validateMsg(sMessage=message))):
+                    for mType, fnPtr in self.processing_fn_dict.items():
+                        if mType in message:
+                            fnPtr(message)
+                            break
+                elif (not self.validateMsg(sMessage=message)):
+                    # check if multiple messages are received ?
+                    count = message.count(str(self.bSTX))
+                    if count > 1 : 
+                        # we have received multiple messages
+                        self.logger.log("{}: Multiple ({}) Messages Received".format(str(self.tId), str(count)))
+                        searchMsg = message
+                        while (searchMsg.find(str(self.bSTX)) != -1):
+                            # starts with STX
+                            partSize = int(searchMsg[1:5])
+                            partMessage = searchMsg[:partSize]
+                            self.process_Rx_Message(message=partMessage)
+                            searchMsg = searchMsg[partSize:]
+                else:
+                    self.logger.log("{}: Invalid message received, ignoring".format(str(self.tId)))
         except Exception as e:
             self.logger.log_exception(e, traceback)
 
@@ -322,6 +332,10 @@ class DematicMsgHandler():
         strData = message[17:-1]
         self.processData(strData)
 
+    def process_ECHO_message(self, message):
+        self.logger.log("{}: Processing an ECHO message".format(str(self.tId)))
+        self.sendMessage(message=message)
+
     def sendMessage(self, message):
         self.sockObj.send_data(message)
 
@@ -329,7 +343,6 @@ class DematicMsgHandler():
         self.keepAlivelock.acquire()
         self.fSendKeepAlive = False
         self.keepAlivelock.release()
-
 
     def send_KeepAliveMessage(self):
         #if (self.fSendKeepAlive):
