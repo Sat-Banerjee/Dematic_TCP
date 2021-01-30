@@ -66,6 +66,7 @@ class DematicMsgHandler():
         self.processing_fn_dict["ACKN"] = self.process_ACKN_message
         self.processing_fn_dict["LIFE"] = self.process_LIFE_message
         self.processing_fn_dict["STAT"] = self.process_STAT_message
+        self.processing_fn_dict["ECHO"] = self.process_ECHO_message
 
         self.logger.log("{}: Incoming Message Validation set to: {}".format(str(self.tId), str(self.validateMessage)))
 
@@ -203,7 +204,6 @@ class DematicMsgHandler():
                 # echo mode enabled, this client is used as an echo client.
                 # Just revert back with the same data
                 self.sendMessage(message=message)
-
             else:
                 if ((not self.validateMessage) or (self.validateMsg(sMessage=message))):
                     for mType, fnPtr in self.processing_fn_dict.items():
@@ -332,6 +332,10 @@ class DematicMsgHandler():
         strData = message[17:-1]
         self.processData(strData)
 
+    def process_ECHO_message(self, message):
+        self.logger.log("{}: Processing an ECHO message".format(str(self.tId)))
+        self.sendMessage(message=message)
+
     def sendMessage(self, message):
         self.sockObj.send_data(message)
 
@@ -339,7 +343,6 @@ class DematicMsgHandler():
         self.keepAlivelock.acquire()
         self.fSendKeepAlive = False
         self.keepAlivelock.release()
-
 
     def send_KeepAliveMessage(self):
         #if (self.fSendKeepAlive):
